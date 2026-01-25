@@ -10,12 +10,20 @@ import {
   normalizeMediaUnderstandingChatType,
   resolveMediaUnderstandingScope,
 } from "../media-understanding/scope.js";
+import { assertPublicHostname } from "../infra/net/ssrf.js";
 import { DEFAULT_LINK_TIMEOUT_SECONDS } from "./defaults.js";
 import { extractLinksFromMessage } from "./detect.js";
+import type {
+  LinkUnderstandingDecision,
+  LinkUnderstandingModelDecision,
+  LinkUnderstandingOutput,
+  LinkUnderstandingUrlDecision,
+} from "./types.js";
 
 export type LinkUnderstandingResult = {
   urls: string[];
-  outputs: string[];
+  outputs: LinkUnderstandingOutput[];
+  decisions: LinkUnderstandingDecision[];
 };
 
 function resolveScopeDecision(params: {
@@ -69,12 +77,42 @@ async function runCliEntry(params: {
   return trimmed || null;
 }
 
+function buildModelDecision(params: {
+  entry: LinkModelConfig;
+  outcome: LinkUnderstandingModelDecision["outcome"];
+  reason?: string;
+}): LinkUnderstandingModelDecision {
+  const command = params.entry.command?.trim();
+  return {
+    type: "cli",
+    command: command || undefined,
+    outcome: params.outcome,
+    reason: params.reason,
+  };
+}
+
+async function assertUrlIsPublic(
+  url: string,
+): Promise<{ ok: true } | { ok: false; reason: string }> {
+  try {
+    const parsed = new URL(url);
+    await assertPublicHostname(parsed.hostname);
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, reason: String(err) };
+  }
+}
+
 async function runLinkEntries(params: {
   entries: LinkModelConfig[];
   ctx: MsgContext;
   url: string;
   config?: LinkToolsConfig;
-}): Promise<string | null> {
+}): Promise<{
+  output: LinkUnderstandingOutput | null;
+  attempts: LinkUnderstandingModelDecision[];
+}> {
+  const attempts: LinkUnderstandingModelDecision[] = [];
   for (const entry of params.entries) {
     try {
       const output = await runCliEntry({
@@ -83,12 +121,33 @@ async function runLinkEntries(params: {
         url: params.url,
         config: params.config,
       });
-      if (output) return output;
+      if (output) {
+        const decision = buildModelDecision({ entry, outcome: "success" });
+        attempts.push(decision);
+        return {
+          output: {
+            url: params.url,
+            text: output,
+            source: entry.command?.trim() || undefined,
+          },
+          attempts,
+        };
+      }
+      attempts.push(buildModelDecision({ entry, outcome: "skipped", reason: "empty output" }));
     } catch (err) {
-      throw new Error(`link processor failed for ${params.url}: ${String(err)}`);
+      if (shouldLogVerbose()) {
+        logVerbose(`Link understanding failed for ${params.url}: ${String(err)}`);
+      }
+      attempts.push(
+        buildModelDecision({
+          entry,
+          outcome: "failed",
+          reason: String(err),
+        }),
+      );
     }
   }
-  return null;
+  return { output: null, attempts };
 }
 
 export async function runLinkUnderstanding(params: {
@@ -97,33 +156,66 @@ export async function runLinkUnderstanding(params: {
   message?: string;
 }): Promise<LinkUnderstandingResult> {
   const config = params.cfg.tools?.links;
-  if (!config || config.enabled === false) return { urls: [], outputs: [] };
+  if (!config || config.enabled === false) {
+    return { urls: [], outputs: [], decisions: [{ outcome: "disabled", urls: [] }] };
+  }
 
   const scopeDecision = resolveScopeDecision({ config, ctx: params.ctx });
   if (scopeDecision === "deny") {
     if (shouldLogVerbose()) {
       logVerbose("Link understanding disabled by scope policy.");
     }
-    return { urls: [], outputs: [] };
+    return { urls: [], outputs: [], decisions: [{ outcome: "scope-deny", urls: [] }] };
   }
 
   const message = params.message ?? params.ctx.CommandBody ?? params.ctx.RawBody ?? params.ctx.Body;
   const links = extractLinksFromMessage(message ?? "", { maxLinks: config?.maxLinks });
-  if (links.length === 0) return { urls: [], outputs: [] };
+  if (links.length === 0) {
+    return { urls: [], outputs: [], decisions: [{ outcome: "no-links", urls: [] }] };
+  }
 
   const entries = config?.models ?? [];
-  if (entries.length === 0) return { urls: links, outputs: [] };
+  if (entries.length === 0) {
+    const urlDecisions: LinkUnderstandingUrlDecision[] = links.map((url) => ({
+      url,
+      attempts: [],
+    }));
+    return {
+      urls: links,
+      outputs: [],
+      decisions: [{ outcome: "skipped", urls: urlDecisions }],
+    };
+  }
 
-  const outputs: string[] = [];
+  const outputs: LinkUnderstandingOutput[] = [];
+  const urlDecisions: LinkUnderstandingUrlDecision[] = [];
   for (const url of links) {
-    const output = await runLinkEntries({
+    const ssrfCheck = await assertUrlIsPublic(url);
+    if (!ssrfCheck.ok) {
+      urlDecisions.push({
+        url,
+        attempts: [
+          {
+            type: "cli",
+            command: "ssrf",
+            outcome: "skipped",
+            reason: ssrfCheck.reason,
+          },
+        ],
+      });
+      continue;
+    }
+    const { output, attempts } = await runLinkEntries({
       entries,
       ctx: params.ctx,
       url,
       config,
     });
+    const chosen = attempts.find((attempt) => attempt.outcome === "success");
+    urlDecisions.push({ url, attempts, chosen });
     if (output) outputs.push(output);
   }
 
-  return { urls: links, outputs };
+  const outcome = outputs.length > 0 ? "success" : "skipped";
+  return { urls: links, outputs, decisions: [{ outcome, urls: urlDecisions }] };
 }

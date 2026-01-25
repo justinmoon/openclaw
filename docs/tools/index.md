@@ -232,6 +232,13 @@ Notes:
 - See [Web tools](/tools/web) for setup.
 - See [Firecrawl](/tools/firecrawl) for the optional anti-bot fallback.
 
+### Link understanding (inbound)
+Preprocess inbound messages by running a CLI on detected URLs and appending the
+results to the message body before the agent sees it. This is **not** an agent
+tool; it runs in the inbound auto-reply pipeline.
+
+See [Link understanding](/tools/link-understanding) for setup and configuration.
+
 ### `browser`
 Control the dedicated clawd browser.
 

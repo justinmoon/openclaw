@@ -5,6 +5,7 @@ import type {
   MediaUnderstandingDecision,
   MediaUnderstandingOutput,
 } from "../media-understanding/types.js";
+import type { LinkUnderstandingDecision } from "../link-understanding/types.js";
 
 /** Valid message channels for routing. */
 export type OriginatingChannelType = ChannelId | InternalMessageChannel;
@@ -72,6 +73,7 @@ export type MsgContext = {
   MediaUnderstanding?: MediaUnderstandingOutput[];
   MediaUnderstandingDecisions?: MediaUnderstandingDecision[];
   LinkUnderstanding?: string[];
+  LinkUnderstandingDecisions?: LinkUnderstandingDecision[];
   Prompt?: string;
   MaxChars?: number;
   ChatType?: string;

@@ -1005,6 +1005,7 @@
           "plugins/zalouser",
           "tools/exec",
           "tools/web",
+          "tools/link-understanding",
           "tools/apply-patch",
           "tools/elevated",
           "tools/browser",

@@ -2010,6 +2010,35 @@ Example:
 }
 ```
 
+`tools.links` configures link understanding (URL preprocessing via CLI):
+- `tools.links.enabled`: enable/disable link understanding (default: enabled when models are configured).
+- `tools.links.maxLinks`: max URLs per message (default 3).
+- `tools.links.timeoutSeconds`: default CLI timeout (default 30).
+- `tools.links.scope`: optional gating rules (same shape as media understanding scope).
+- `tools.links.models`: ordered CLI entries (fallbacks in order).
+  - `command`: executable to run (required).
+  - `args`: templated args (supports `{{LinkUrl}}`).
+  - `timeoutSeconds`: optional per-entry override.
+
+Example:
+```json5
+{
+  tools: {
+    links: {
+      enabled: true,
+      maxLinks: 2,
+      scope: {
+        default: "deny",
+        rules: [{ action: "allow", match: { chatType: "direct" } }]
+      },
+      models: [
+        { command: "link-understand", args: ["--url", "{{LinkUrl}}"] }
+      ]
+    }
+  }
+}
+```
+
 `agents.defaults.subagents` configures sub-agent defaults:
 - `model`: default model for spawned sub-agents (string or `{ primary, fallbacks }`). If omitted, sub-agents inherit the caller’s model unless overridden per agent or per call.
 - `maxConcurrent`: max concurrent sub-agent runs (default 1)
@@ -3180,7 +3209,7 @@ clawdbot dns setup --apply
 
 ## Template variables
 
-Template placeholders are expanded in `tools.media.*.models[].args` and `tools.media.models[].args` (and any future templated argument fields).
+Template placeholders are expanded in `tools.media.*.models[].args`, `tools.media.models[].args`, and `tools.links.models[].args` (and any future templated argument fields).
 
 | Variable | Description |
 |----------|-------------|
@@ -3195,6 +3224,7 @@ Template placeholders are expanded in `tools.media.*.models[].args` and `tools.m
 | `{{MediaUrl}}` | Inbound media pseudo-URL (if present) |
 | `{{MediaPath}}` | Local media path (if downloaded) |
 | `{{MediaType}}` | Media type (image/audio/document/…) |
+| `{{LinkUrl}}` | URL currently being processed (link understanding only) |
 | `{{Transcript}}` | Audio transcript (when enabled) |
 | `{{Prompt}}` | Resolved media prompt for CLI entries |
 | `{{MaxChars}}` | Resolved max output chars for CLI entries |

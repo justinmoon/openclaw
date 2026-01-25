@@ -240,6 +240,17 @@ export function resolveIMessageGroupToolPolicy(
   });
 }
 
+export function resolveGoogleChatGroupToolPolicy(
+  params: GroupMentionParams,
+): GroupToolPolicyConfig | undefined {
+  return resolveChannelGroupToolsPolicy({
+    cfg: params.cfg,
+    channel: "googlechat",
+    groupId: params.groupId,
+    accountId: params.accountId,
+  });
+}
+
 export function resolveDiscordGroupToolPolicy(
   params: GroupMentionParams,
 ): GroupToolPolicyConfig | undefined {
