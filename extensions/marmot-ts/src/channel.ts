@@ -56,6 +56,23 @@ function isSenderAllowed(senderId: string, allowFrom: string[]): boolean {
   return allowFrom.some((entry) => entry.trim().toLowerCase() === normalizedSender);
 }
 
+function normalizeAllowFromEntry(raw: string): string {
+  const trimmed = raw.replace(/^marmot-ts:/i, "").trim();
+  if (!trimmed) {
+    return "";
+  }
+  if (trimmed === "*") {
+    return "*";
+  }
+  try {
+    // Prefer a stable normalized representation (hex pubkey).
+    return normalizePubkey(trimmed);
+  } catch {
+    // Fall back to a plain string match (e.g. hex pubkey already).
+    return trimmed.toLowerCase();
+  }
+}
+
 export const marmotTsPlugin: ChannelPlugin<ResolvedMarmotTsAccount> = {
   id: "marmot-ts",
   meta: {
@@ -267,16 +284,25 @@ export const marmotTsPlugin: ChannelPlugin<ResolvedMarmotTsAccount> = {
             }
 
             const dmPolicy = account.config.dmPolicy ?? "pairing";
-            const configAllowFrom = (account.config.allowFrom ?? []).map((v) => String(v));
+            const configAllowFrom = (account.config.allowFrom ?? [])
+              .map((v) => normalizeAllowFromEntry(String(v)))
+              .filter(Boolean);
             const rawBody = (ev.content ?? "").trim();
             const shouldComputeAuth = runtime.channel.commands.shouldComputeCommandAuthorized(
               rawBody,
               cfg,
             );
-            const storeAllowFrom =
-              dmPolicy !== "open" || shouldComputeAuth
-                ? await runtime.channel.pairing.readAllowFromStore("marmot-ts").catch(() => [])
-                : [];
+            const shouldReadAllowFromStore =
+              dmPolicy !== "open" ||
+              shouldComputeAuth ||
+              (dmPolicy === "open" && configAllowFrom.length > 0 && !configAllowFrom.includes("*"));
+            const storeAllowFromRaw = shouldReadAllowFromStore
+              ? await runtime.channel.pairing.readAllowFromStore("marmot-ts").catch(() => [])
+              : [];
+            const storeAllowFrom = storeAllowFromRaw
+              .map((v) => normalizeAllowFromEntry(String(v)))
+              .filter(Boolean);
+
             const effectiveAllowFrom = [...configAllowFrom, ...storeAllowFrom];
             const allowed = isSenderAllowed(peer, effectiveAllowFrom);
 
@@ -318,6 +344,17 @@ export const marmotTsPlugin: ChannelPlugin<ResolvedMarmotTsAccount> = {
               const h = activeBuses.get(account.accountId);
               await h?.sendDmToGroup({ mlsGroupId: ev.mls_group_id, content: exact });
               ctx.setStatus({ accountId: account.accountId, lastOutboundAt: Date.now() });
+              return;
+            }
+
+            // In dmPolicy="open", we still want the option to restrict which peers can reach
+            // the agent/LLM path. This keeps deterministic E2E probes working while narrowing
+            // the inference surface area in production deployments.
+            const inferenceRestricted =
+              dmPolicy === "open" &&
+              effectiveAllowFrom.length > 0 &&
+              !effectiveAllowFrom.includes("*");
+            if (inferenceRestricted && !allowed) {
               return;
             }
 
