@@ -1,0 +1,9 @@
+{
+  "id": "marmot-ts",
+  "channels": ["marmot-ts"],
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}

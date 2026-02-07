@@ -1,0 +1,40 @@
+{
+  "name": "@openclaw/marmot-ts",
+  "version": "2026.2.3",
+  "description": "OpenClaw Marmot channel plugin powered by marmot-ts (in-process TypeScript)",
+  "type": "module",
+  "dependencies": {
+    "applesauce-accounts": "^5.0.0",
+    "applesauce-common": "^5.0.0",
+    "applesauce-core": "^5.0.3",
+    "applesauce-relay": "^5.1.0",
+    "marmot-ts": "github:justinmoon/marmot-ts#a9d93cc0383bb4503cc7c003bd4e9285aa12d86e",
+    "nostr-tools": "^2.23.0",
+    "rxjs": "^7.8.2",
+    "ts-mls": "^1.6.1",
+    "zod": "^4.3.6"
+  },
+  "peerDependencies": {
+    "openclaw": ">=2026.2.0"
+  },
+  "openclaw": {
+    "extensions": [
+      "./index.ts"
+    ],
+    "channel": {
+      "id": "marmot-ts",
+      "label": "Marmot (TS)",
+      "selectionLabel": "Marmot (TypeScript MLS)",
+      "docsPath": "/channels/marmot",
+      "docsLabel": "marmot",
+      "blurb": "MLS-encrypted DMs over Nostr relays (Marmot Protocol) via marmot-ts.",
+      "order": 57,
+      "quickstartAllowFrom": true
+    },
+    "install": {
+      "npmSpec": "@openclaw/marmot-ts",
+      "localPath": "extensions/marmot-ts",
+      "defaultChoice": "npm"
+    }
+  }
+}
