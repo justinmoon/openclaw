@@ -29,6 +29,7 @@ import {
   resolveInboundDebounceMs,
 } from "../../auto-reply/inbound-debounce.js";
 import { dispatchReplyFromConfig } from "../../auto-reply/reply/dispatch-from-config.js";
+import { handleInboundMessage } from "../../auto-reply/reply/handle-inbound-message.js";
 import { finalizeInboundContext } from "../../auto-reply/reply/inbound-context.js";
 import {
   buildMentionRegexes,
@@ -213,6 +214,7 @@ export function createPluginRuntime(): PluginRuntime {
         formatAgentEnvelope,
         formatInboundEnvelope,
         resolveEnvelopeFormatOptions,
+        handleInboundMessage,
       },
       routing: {
         resolveAgentRoute,

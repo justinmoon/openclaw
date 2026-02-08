@@ -175,6 +175,9 @@ export type RuntimeLogger = {
   error: (message: string) => void;
 };
 
+type HandleInboundMessage =
+  typeof import("../../auto-reply/reply/handle-inbound-message.js").handleInboundMessage;
+
 export type PluginRuntime = {
   version: string;
   config: {
@@ -225,6 +228,7 @@ export type PluginRuntime = {
       formatAgentEnvelope: FormatAgentEnvelope;
       formatInboundEnvelope: FormatInboundEnvelope;
       resolveEnvelopeFormatOptions: ResolveEnvelopeFormatOptions;
+      handleInboundMessage: HandleInboundMessage;
     };
     routing: {
       resolveAgentRoute: ResolveAgentRoute;
